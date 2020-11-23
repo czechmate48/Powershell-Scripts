@@ -1,10 +1,10 @@
 #--------------------------------------------------#
 # ADAPTED BY: Christopher N. Sefcik
 # DATE: 11/23/2020
-#
+
 # ATTRIBUTION: This script is a slight adaptation of the script created by Ed Wilson & Sean Kearney
 # https://devblogs.microsoft.com/scripting/use-powershell-to-quickly-find-installed-software/
-#
+
 # USAGE: Query the registry to identify programs that have been installed on the windows device
 #--------------------------------------------------#
 
