@@ -1,4 +1,4 @@
-﻿#https://docs.microsoft.com/en-us/microsoft-365/enterprise/assign-licenses-to-user-accounts-with-microsoft-365-powershell?view=o365-worldwide#move-a-user-to-a-different-subscription-license-plan-with-the-azure-active-directory-powershell-for-graph-module
+#https://docs.microsoft.com/en-us/microsoft-365/enterprise/assign-licenses-to-user-accounts-with-microsoft-365-powershell?view=o365-worldwide#move-a-user-to-a-different-subscription-license-plan-with-the-azure-active-directory-powershell-for-graph-module
 
 #Open powershell as an administrator
 
@@ -27,56 +27,87 @@ $header | Out-File "C:\users\csefcik\Documents\AllUsersAndLicenses.txt" -Append
 
 $licensePlanList = Get-AzureADSubscribedSku
 $userPrincipalNames = Get-AzureADUser -Top 700 | Where-Object {$_.UserType -ne "guest"}
+$userSkus = $userPrincipalNames[1] | Select -ExpandProperty AssignedLicenses | Select SkuID #Get all user license skus
+
+function Get-SkuPartNumber {
+
+    [CmdletBinding()]
+    param (
+        [Object[]]$skus,
+        [Object[]]$licensePlanList
+    )
+
+    $skuPartNumbers = @()
+
+    for ($j=0; $j -lt $skus.Length; $j++){
+        for ($k=0; $k -lt $licensePlanList.Length; $k++){
+            If ($skus[$j].SkuId -eq $licensePlanList[$k].SkuId) {
+                $skuPartNumbers += $licensePlanList[$k].SkuPartNumber
+            }
+
+        }
+    }
+
+    $skuPartNumbers.Count
+
+    return $skuPartNumbers
+}
+
+
 for ($i=0; $i -lt $userPrincipalNames.Length; $i++) {
-    $userSkus = $userPrincipalNames[$i] | Select -ExpandProperty AssignedLicenses | Select SkuID
-    $userSkus | ForEach { $sku=$_.SkuId ; $licensePlanList | ForEach { If ( $sku -eq $_.ObjectId.substring($_.ObjectId.length - 36, 36) ) { 
-    
-        $skuPartNum = $_.SkuPartNumber } } 
+
+    $userSkus = $userPrincipalNames[$i] | Select -ExpandProperty AssignedLicenses | Select SkuID #Get all user license skus
+    $skuPartNumbers = Get-SkuPartNumber -skus $userSkus -licensePlanList $licensePlanList
+
+    if ($skuPartNumbers.Count -ne 0){
+        $name = $userPrincipalNames[$i] | Select DisplayName
+    }
+
+    for ($j = 0; $j -lt $skuPartNumbers.Count; $j++){ #need to make sure coming trhough as an array skupartnumbers
+
+        $skuPartNum = $skuPartNumbers[$j]
 
         if ($skuPartNum -like $e2OffSku){ #Office E2
-            $e2OffUsers += $userPrincipalNames[$i]
+            $e2OffUsers += $userPrincipalNames[$i].UserPrincipalName
             $curUserName = $userPrincipalNames[$i].UserPrincipalName
             $userAndLicense = "$curUserName,$e2OffSku"
         }
         elseif ($skuPartNum -like $e3OffSku){ #Office E3
-            $e3OffUsers += $userPrincipalNames[$i]
+            $e3OffUsers += $userPrincipalNames[$i].UserPrincipalName
             $curUserName = $userPrincipalNames[$i].UserPrincipalName
             $userAndLicense = "$curUserName,$e3OffSku"
         }
         elseif ($skuPartNum -like $e5OffSku) { #Office E5
-            $e5OffUsers += $userPrincipalNames[$i]
+            $e5OffUsers += $userPrincipalNames[$i].UserPrincipalName
             $curUserName = $userPrincipalNames[$i].UserPrincipalName
             $userAndLicense = "$curUserName,$e5OffSku"
         }
         elseif ($skuPartNum -like $e3MicSku){ #Microsoft E3
-            $e3MicUsers += $userPrincipalNames[$i]
+            $e3MicUsers += $userPrincipalNames[$i].UserPrincipalName
             $curUserName = $userPrincipalNames[$i].UserPrincipalName
             $userAndLicense = "$curUserName,$e3MicSku"
         }
         elseif ($skuPartNum -like $e5MicSku){ #Microsoft E5
-            $e5MicUsers += $userPrincipalNames[$i]
+            $e5MicUsers += $userPrincipalNames[$i].UserPrincipalName
             $curUserName = $userPrincipalNames[$i].UserPrincipalName
             $userAndLicense = "$curUserName,$e5MicSku"
         }
         else {
-            continue #Prevents users without a matching license from being written to the 'AllUsersAndLicenses.txt' file
-            #A user may also have more than one license.
+            continue
         }
-
-        #GENERATE A FILE WITH ALL USER NAMES AND LICENSES
         $userAndLicense | Out-File "C:\users\csefcik\Documents\AllUsersAndLicenses.txt" -Append
-    }
+    }               
 }
 
 #GENERATE FILE WITH NAMES OF USERS BASED ON LICENSE TYPE
 $e2OffUsers | ForEach {"$_.UserPrincipalName,$e2OffUsers" | Out-File "C:\users\csefcik\Documents\e2OffUsers.txt" -Append}
 $e3OffUsers | ForEach {"$_.UserPrincipalName,$e3OffUsers" | Out-File "C:\users\csefcik\Documents\e3OffUsers.txt" -Append}
 $e5OffUsers | ForEach {"$_.UserPrincipalName,$e5OffUsers" | Out-File "C:\users\csefcik\Documents\e5OffUsers.txt" -Append}
-$e3MicUsers | ForEach {"$_.UserPrincipalName,$e3MicUsers" | Out-File "C:\users\csefcik\Documents\e3MicUsers.txt" -Append}
-$e5MicUsers | ForEach {"$_.UserPrincipalName,$e5MicUsers" | Out-File "C:\users\csefcik\Documents\e5MicUsers.txt" -Append}
+$e3MicUsers | Out-File "C:\users\csefcik\Documents\e3MicUsers.txt" -Append
+$e5MicUsers  | Out-File "C:\users\csefcik\Documents\e5MicUsers.txt" -Append
 
 #REPLACE BASE SUBSCRIPTION - DO NOT RUN UNTIL READY
-$allUsersAndLicenses = Import-Csv "C:\users\csefcik\Documents\TestLicenses.txt"
+$allUsersAndLicenses = Import-Csv "C:\users\csefcik\Documents\mutualUsers.txt"
 
 #REPLACE "STANDARDWOFFPACK" WITH 'SPE_E3'
 $allUsersAndLicenses | ForEach {
@@ -113,6 +144,54 @@ $allUsersAndLicenses | ForEach {
 
 }
 
+#####
+#Not part of above script. Used to combine AzureAD and Active Directory
+#####
 
+$identity = "identity"
+$curLicense = "license"
+$header = "$identity,$curLicense"
+$header | Out-File "C:\users\csefcik\Documents\mutualUsers.txt" -Append
+"email" | Out-File "C:\users\csefcik\Documents\inAD_NotAzure.txt"
+
+$azureADUsers = Import-CSV -Path "C:\users\csefcik\Documents\AllUsersAndLicenses.txt"
+$adUsers = Import-CSV -Path "C:\users\csefcik\Documents\adusers.txt"
+
+$match = $false
+for ($i=0; $i -lt $azureADUsers.Length; $i++){
+    $userIdentity = $azureADUsers[$i].$identity
+    $userLicense = $azureADUsers[$i].$curLicense
+    $combo = "$userIdentity,$userLicense"
+    for ($j=0; $j -lt $adUsers.Length; $j++){
+        if ($azureADUsers[$i].identity -like $adUsers[$j].email){
+            $combo | Out-File "C:\users\csefcik\Documents\mutualUsers.txt" -Append
+            $match = $true
+        }
+    }
+    if ($match -eq $false){
+        #$combo | Out-File "C:\users\csefcik\Documents\notMutualUsers.txt" -Append
+        $userIdentity | Out-File -FilePath "C:\users\csefcik\Documents\inAzure_NotAD.txt" -Append
+    }
+    else {
+        $match = $false
+    }
+}
+
+$match = $false
+for ($i=0; $i -lt $adUsers.Length; $i++){
+    $userIdentity = $adUsers[$i].email
+    for ($j=0; $j -lt $azureADUsers.Length; $j++){
+        if ($adUsers[$i].email -like $azureADUsers[$j].identity){
+            $match = $true
+        }
+    }
+    if ($match -eq $false){
+        #$combo | Out-File "C:\users\csefcik\Documents\notMutualUsers.txt" -Append
+        $userIdentity | Out-File -FilePath "C:\users\csefcik\Documents\inAD_NotAzure.txt" -Append
+    }
+    else {
+        $match = $false
+    }
+}
 
 
