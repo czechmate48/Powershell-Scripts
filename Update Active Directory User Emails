@@ -1,0 +1,13 @@
+$users = Get-ADUser -Filter * -SearchBase "CN=Users,DC=hopva,DC=net" | Select-Object -Property "SamAccountName","UserPrincipalName"
+for ($i=0; $i -lt $users.Length; $i++){
+    #$samAccountName = $users[$i].SamAccountName
+    $userPrincipalName = $users[$i].UserPrincipalName
+    $combo = "$userPrincipalName"
+    $combo | Out-File -FilePath "C:\users\csefcik\Documents\adUsers.txt" -Append
+}
+
+$toUpdate = Import-CSV -Path "C:\users\csefcik\Documents\emailupdates.txt"
+
+for ($j=0; $j -lt $toUpdate.SamAccountName.Length; $j++){
+    Set-ADUser -Identity $toUpdate[$j].SamAccountName -EmailAddress $toUpdate[$j].Email
+}
